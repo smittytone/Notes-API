@@ -5,9 +5,10 @@ import (
 	"net/http"
 	"strconv"
 	"database/sql"
+	"encoding/base64"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mattn/go-sqlite3"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type folder struct {
@@ -45,9 +46,7 @@ var folders = []folder{
     {ID: 1, Name: "Raspberry_Pi", Database: "pi_kb"},
 }
 
-var notes = map[string][]note{
-    "pi_kb": {note{ID: 1, Title: "Bash", MarkdownData: "## Get the hostname\n\n```\nhostname\n```\n"},},
-}
+var notes map[string][]note
 
 // GENUINE GLOBALS
 var db *sql.DB
@@ -55,7 +54,20 @@ const databaseFilename string = "notes.db"
 
 func main() {
 
-    initDatabase(databaseFilename)
+    // DUMMY DATA
+    testText := "## Get the hostname\n\n```\nhostname\n```\n"
+    encoded := base64.StdEncoding.EncodeToString([]byte(testText))
+    aNote := new(note)
+    aNote.ID = 1
+    aNote.Title = "Bash"
+    aNote.MarkdownData = encoded
+    notes = make(map[string][]note)
+    notes["pi_kb"] = make([]note, 0)
+    notes["pi_kb"] = append(notes["pi_kb"], *aNote)
+
+    if initDatabase(databaseFilename) != nil {
+        fmt.Println("[ERROR] Could not access database")
+    }
 
     router := gin.Default()
 
@@ -207,28 +219,25 @@ func makeError(code int, message string) *returnError {
     return anError
 }
 
-func initDatabase(path string) {
+func initDatabase(path string) error {
 
     const createDB string = `
-      CREATE TABLE IF NOT EXISTS notes (
+      CREATE TABLE IF NOT EXISTS folders (
       id INTEGER NOT NULL PRIMARY KEY,
-      time DATETIME NOT NULL,
-      description TEXT
+      name STRING NOT NULL,
+      dbase TEXT
     );`
 
     // Connect to the database
     db, err := sql.Open("sqlite3", path)
     if err != nil {
-        return nil, err
+        return err
     }
 
     // Attempt to create the database if not present
     if _, err := db.Exec(createDB); err != nil {
-        return nil, err
+        return err
     }
 
-    return &Activities{
-      db: db,
-     }, nil
-    }
+    return nil
 }
